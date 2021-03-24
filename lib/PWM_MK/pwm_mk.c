@@ -34,6 +34,7 @@ void TIM_setup(TIM_TypeDef *reg, TIM_mode_t mode, uint32_t channel_number)
         reg->CR1 = TIM_CR1_CEN;
         reg->PSC = 1;    // default value
         reg->ARR = 1000; // default value
+        
     }
     break;
 
@@ -41,7 +42,7 @@ void TIM_setup(TIM_TypeDef *reg, TIM_mode_t mode, uint32_t channel_number)
     {
         reg->CCMR1 &= ~(TIM_CCMR1_IC1F);
         reg->CCMR1 |= (TIM_CCMR1_CC1S_1);
-        reg->CCER |= (TIM_CCER_CC1P);
+        reg->CCER |= (TIM_CCER_CC1P) ;
         reg->SMCR |= TIM_SMCR_TS_2;
         reg->SMCR |= TIM_SMCR_SMS_0 | TIM_SMCR_SMS_1 | TIM_SMCR_SMS_2;
         reg->DIER |= TIM_DIER_UIE;

@@ -5,7 +5,8 @@
 #include <time.h>
 
 #define RX_PIN PA10
-#define TX_PIN PB6
+#define TX_PIN PA9
+
 
 
 // _______ RX variables ________________________
@@ -22,7 +23,10 @@ uint32_t Tx_buffer_head = 0;  // RX buffer head pointer
 uint32_t Tx_buffer_tail = 0;  // RX buffer tail pointer
 uint32_t Tx_buffer_empty = 0;
 
-// ___________ UART init - set the RX, TX pins, baudrate, interrupt enable
+
+
+
+
 
 void uart1_init(uint32_t baud_rate)
 {
@@ -38,6 +42,8 @@ void uart1_init(uint32_t baud_rate)
 
     NVIC_EnableIRQ(USART1_IRQn);
 }
+
+
 
 uint32_t get_from_buffer()
 {
@@ -56,6 +62,8 @@ uint32_t get_from_buffer()
         return temp_char;
     }
 }
+
+
 
 __attribute__((interrupt)) void USART1_IRQHandler(void)
 {
@@ -76,3 +84,5 @@ __attribute__((interrupt)) void USART1_IRQHandler(void)
         //USART1->DR = tmp;
     }
 }
+
+

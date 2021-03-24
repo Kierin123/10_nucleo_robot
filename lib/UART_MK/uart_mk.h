@@ -5,6 +5,7 @@
 
 
 void uart1_init();
+void uart2_init();
 
 uint32_t get_from_buffer();
 

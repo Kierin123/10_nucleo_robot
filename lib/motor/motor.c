@@ -4,193 +4,193 @@
 #include "pwm_mk.h"
 #include "GPIO_MK.h"
 
-static uint32_t aux_speed_left = 0;
-static uint32_t aux_speed_right = 0;
-
 static motor_t motor_left;
 static motor_t motor_right;
 
-static void motor_left_f(uint32_t direction)
+static void motor_f(motor_t motor, uint32_t direction)
 {
-    if ((direction == FORWARD_DIR) && (motor_left.state != MOTOR_STOP))
+    if ((direction == FORWARD_DIR) && (motor.control_v.state != MOTOR_STOP))
     {
-        GPIO_write(1, GPIOB, motor_left.pin_dir);
+        GPIO_write(motor.id_t, GPIOB, motor.config_v.pin_dir);
     }
     else
     {
-        GPIO_write(0, GPIOB, motor_left.pin_dir);
+        GPIO_write(!motor.id_t, GPIOB, motor.config_v.pin_dir);
     }
 }
 
-static void motor_right_f(uint32_t direction)
+static void set_speed(uint32_t speed, uint8_t channel)
 {
-    if ((direction == FORWARD_DIR) && (motor_right.state != MOTOR_STOP))
-    {
-        GPIO_write(0, GPIOB, motor_right.pin_dir);
-    }
-    else
-    {
-        GPIO_write(1, GPIOB, motor_right.pin_dir);
-    }
-}
 
-static void set_speed_left_motor(uint32_t speed)
-{
-    TIM_pwm_set(TIM3, speed, CH1); // set pwm value for Left motor
-}
-
-static void set_speed_right_motor(uint32_t speed)
-{
-    TIM_pwm_set(TIM3, speed, CH2); // set pwm value for Right motor
+    TIM_pwm_set(MOTOR_PWM_TIMER, speed, channel); // set pwm value for Left motor
 }
 
 void motor_init()
 {
-    motor_left.speed = 0;
-    motor_right.speed = 0;
-    motor_left.direction = FORWARD_DIR;
-    motor_right.direction = FORWARD_DIR;
-    motor_left.state = MOTOR_STOP;
-    motor_right.state = MOTOR_STOP;
-    motor_left.pin_dir = PB1;
-    motor_right.pin_dir = PB2;
-    motor_left.pin_pwm = PA6;
-    motor_right.pin_pwm = PA7;
+    motor_left.control_v.speed = 0;
+    motor_right.control_v.speed = 0;
+    motor_left.control_v.direction = FORWARD_DIR;
+    motor_right.control_v.direction = FORWARD_DIR;
+    motor_left.control_v.state = MOTOR_STOP;
+    motor_right.control_v.state = MOTOR_STOP;
+    motor_left.config_v.pin_dir = PB1;
+    motor_right.config_v.pin_dir = PB2;
+    motor_left.config_v.pin_pwm = PB6;
+    motor_right.config_v.pin_pwm = PB7;
+    motor_right.control_v.aux_speed = 0;
+    motor_left.control_v.aux_speed = 0;
+    motor_left.id_t = 1;
+    motor_right.id_t = 0;
+    motor_left.channel = CH1;
+    motor_right.channel = CH2;
 
-    GPIO_pin_config(GPIOA, motor_left.pin_pwm, GPIO_ALTERNATE_PP_10HZ);  // wyjscie TIM3 CH1 kanał silnika
-    GPIO_pin_config(GPIOA, motor_right.pin_pwm, GPIO_ALTERNATE_PP_10HZ); // wyjscie TIM3 CH2 kanał silnika
+    GPIO_pin_config(GPIOB, motor_left.config_v.pin_pwm, GPIO_ALTERNATE_PP_10HZ);  // wyjscie TIM3 CH1 kanał silnika
+    GPIO_pin_config(GPIOB, motor_right.config_v.pin_pwm, GPIO_ALTERNATE_PP_10HZ); // wyjscie TIM3 CH2 kanał silnika
 
-    GPIO_pin_config(GPIOB, motor_left.pin_dir, GPIO_OUTPUT_PP_10HZ);  // wyjscie DIR silnika
-    GPIO_pin_config(GPIOB, motor_right.pin_dir, GPIO_OUTPUT_PP_10HZ); // wyjscie DIR silnika
+    GPIO_pin_config(GPIOB, motor_left.config_v.pin_dir, GPIO_OUTPUT_PP_10HZ);  // wyjscie DIR silnika
+    GPIO_pin_config(GPIOB, motor_right.config_v.pin_dir, GPIO_OUTPUT_PP_10HZ); // wyjscie DIR silnika
 
-    TIM_prescaler_set(TIM4, 4999U);
-    TIM_overload_set(TIM4, 4U);
-    TIM_setup_counter(TIM4, up_count_mode);
-    NVIC_EnableIRQ(TIM4_IRQn);
+    // SET TIMER for pwm control Channel 1 and Channel 2
+    //______________________________________________________________________________
 
-    set_speed_left_motor(motor_left.speed);
-    set_speed_right_motor(motor_right.speed);
+    TIM_setup(MOTOR_PWM_TIMER, pwm_mode, motor_left.channel);
+    TIM_prescaler_set(MOTOR_PWM_TIMER, 5U);
+    TIM_overload_set(MOTOR_PWM_TIMER, 500U);
+
+    TIM_setup(MOTOR_PWM_TIMER, pwm_mode, motor_right.channel);
+    TIM_prescaler_set(MOTOR_PWM_TIMER, 5U);
+    TIM_overload_set(MOTOR_PWM_TIMER, 500U);
+
+    //________________________________________________________________________________
+
+    TIM_prescaler_set(MOTOR_SPEED_TIMER, 4999U);
+    TIM_overload_set(MOTOR_SPEED_TIMER, 4U);
+    TIM_setup_counter(MOTOR_SPEED_TIMER, up_count_mode);
+    NVIC_EnableIRQ(TIM1_UP_IRQn);
+
+    set_speed(motor_left.control_v.speed, motor_left.channel);
+    set_speed(motor_right.control_v.speed, motor_right.channel);
 }
 
 void speed_up()
 {
-    if ((motor_left.speed >= 254) || (motor_right.speed >= 254))
+    if ((motor_left.control_v.speed >= 254) || (motor_right.control_v.speed >= 254))
     {
-        motor_left.speed = 255;
-        motor_right.speed = 255;
+        motor_left.control_v.speed = 255;
+        motor_right.control_v.speed = 255;
     }
     else
     {
-        motor_left.speed += 2;
-        motor_right.speed += 2;
-        aux_speed_left = motor_left.speed;
-        aux_speed_right = motor_right.speed;
+        motor_left.control_v.speed += 2;
+        motor_right.control_v.speed += 2;
+        motor_left.control_v.aux_speed = motor_left.control_v.speed;
+        motor_right.control_v.aux_speed = motor_right.control_v.speed;
     }
 }
 
 void speed_down()
 {
 
-    if ((motor_left.speed <= 0) || (motor_right.speed <= 0))
+    if ((motor_left.control_v.speed <= 0) || (motor_right.control_v.speed <= 0))
     {
-        motor_left.speed = 0;
-        motor_right.speed = 0;
+        motor_left.control_v.speed = 0;
+        motor_right.control_v.speed = 0;
     }
     else
     {
-        motor_left.speed -= 2;
-        motor_right.speed -= 2;
-        aux_speed_left = motor_left.speed;
-        aux_speed_right = motor_right.speed;
+        motor_left.control_v.speed -= 2;
+        motor_right.control_v.speed -= 2;
+        motor_left.control_v.aux_speed = motor_left.control_v.speed;
+        motor_right.control_v.aux_speed = motor_right.control_v.speed;
     }
 }
 
 void forward()
 {
-    motor_right.state = MOTOR_FORWARD;
-    motor_left.state = MOTOR_FORWARD;
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
-    motor_right_f(FORWARD_DIR);
-    motor_left_f(FORWARD_DIR);
+    motor_right.control_v.state = MOTOR_FORWARD;
+    motor_left.control_v.state = MOTOR_FORWARD;
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
+    motor_f(motor_left, FORWARD_DIR);
+    motor_f(motor_right, FORWARD_DIR);
 }
 
 void backward()
 {
     stop();
-    motor_right.state = MOTOR_BACKWARD;
-    motor_left.state = MOTOR_BACKWARD;
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
-    motor_right_f(BACKWARD_DIR);
-    motor_left_f(BACKWARD_DIR);
+    motor_right.control_v.state = MOTOR_BACKWARD;
+    motor_left.control_v.state = MOTOR_BACKWARD;
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
+    motor_f(motor_left, BACKWARD_DIR);
+    motor_f(motor_right, BACKWARD_DIR);
 }
 
 void forward_left()
 {
-    motor_right.state = MOTOR_FORWARD;
-    motor_left.state = MOTOR_FORWARD;
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
+    motor_right.control_v.state = MOTOR_FORWARD;
+    motor_left.control_v.state = MOTOR_FORWARD;
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
 
-    motor_right_f(FORWARD_DIR);
-    motor_left_f(FORWARD_DIR);
+    motor_f(motor_right, FORWARD_DIR);
+    motor_f(motor_left, FORWARD_DIR);
 
-    motor_left.speed = motor_left.speed / 2;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed / 2;
 }
 
 void forward_right()
 {
-    motor_right.state = MOTOR_FORWARD;
-    motor_left.state = MOTOR_FORWARD;
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
+    motor_right.control_v.state = MOTOR_FORWARD;
+    motor_left.control_v.state = MOTOR_FORWARD;
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
 
-    motor_right_f(FORWARD_DIR);
-    motor_left_f(FORWARD_DIR);
+    motor_f(motor_right, FORWARD_DIR);
+    motor_f(motor_left, FORWARD_DIR);
 
-    motor_right.speed = motor_right.speed / 2;
+    motor_right.control_v.speed = motor_right.control_v.aux_speed / 2;
 }
 
 void turn_left()
 {
     stop();
-    motor_right.state = MOTOR_FORWARD;
-    motor_left.state = MOTOR_BACKWARD;
-    motor_right_f(FORWARD_DIR);
-    motor_left_f(BACKWARD_DIR);
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
+    motor_right.control_v.state = MOTOR_FORWARD;
+    motor_left.control_v.state = MOTOR_BACKWARD;
+    motor_f(motor_right, FORWARD_DIR);
+    motor_f(motor_left, BACKWARD_DIR);
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
 }
 
 void turn_right()
 {
     stop();
-    motor_right.state = MOTOR_BACKWARD;
-    motor_left.state = MOTOR_FORWARD;
-    motor_right_f(BACKWARD_DIR);
-    motor_left_f(FORWARD_DIR);
-    motor_right.speed = aux_speed_right;
-    motor_left.speed = aux_speed_left;
+    motor_right.control_v.state = MOTOR_BACKWARD;
+    motor_left.control_v.state = MOTOR_FORWARD;
+    motor_f(motor_right, BACKWARD_DIR);
+    motor_f(motor_left, FORWARD_DIR);
+    motor_right.control_v.speed = motor_right.control_v.aux_speed;
+    motor_left.control_v.speed = motor_left.control_v.aux_speed;
 }
 
 void stop()
 {
-    motor_right.state = MOTOR_STOP;
-    motor_left.state = MOTOR_STOP;
+    motor_right.control_v.state = MOTOR_STOP;
+    motor_left.control_v.state = MOTOR_STOP;
 }
 
-__attribute__((interrupt)) void TIM4_IRQHandler(void)
+__attribute__((interrupt)) void TIM1_UP_IRQHandler(void)
 {
-    TIM4->SR = ~TIM_SR_UIF;
-    if ((motor_left.state != MOTOR_STOP) || (motor_right.state != MOTOR_STOP))
+    MOTOR_SPEED_TIMER->SR = ~TIM_SR_UIF;
+    if ((motor_left.control_v.state != MOTOR_STOP) || (motor_right.control_v.state != MOTOR_STOP))
     {
-        set_speed_left_motor(motor_left.speed);
-        set_speed_right_motor(motor_right.speed);
+        set_speed(motor_left.control_v.speed, motor_left.channel);
+        set_speed(motor_right.control_v.speed, motor_right.channel);
     }
     else
     {
-        set_speed_left_motor(0);
-        set_speed_right_motor(0);
+        set_speed(0, motor_left.channel);
+        set_speed(0, motor_right.channel);
     }
 }
